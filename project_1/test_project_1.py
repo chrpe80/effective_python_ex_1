@@ -74,6 +74,36 @@ class TestFindBestModel(unittest.TestCase):
         expectation = "There are missing values and all columns are not numerical"
         self.assertEqual(expectation, instance.check_if_ready_for_ml())
 
+    def test_create_reg_models(self):
+        instance = FindBestModel()
+        instance.df = pd.read_csv("advertising.csv")
+        instance.target = "sales"
+        self.assertIsInstance(instance.create_reg_models(), tuple)
+        self.assertEqual(len(instance.create_reg_models()), 6)
+
+    def test_ann_regressor(self):
+        instance = FindBestModel()
+        instance.df = pd.read_csv("advertising.csv")
+        instance.target = "sales"
+        self.assertIsInstance(instance.ann_regressor(), tuple)
+        self.assertEqual(len(instance.ann_regressor()), 2)
+
+    def test_create_classification_models(self):
+        instance = FindBestModel()
+        instance.df = pd.read_csv("hearing_test.csv")
+        instance.target = "test_result"
+        self.assertIsInstance(instance.create_classification_models(), tuple)
+        self.assertEqual(len(instance.create_classification_models()), 7)
+
+
+
+
+
+
+
+if __name__ == "__main__":
+    unittest.main()
+
 
 
 

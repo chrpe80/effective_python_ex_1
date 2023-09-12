@@ -1,11 +1,17 @@
 import pandas as pd
 import numpy as np
-from sklearn.linear_model import LinearRegression, Lasso, Ridge, ElasticNet
-from sklearn.svm import SVR
-from sklearn.preprocessing import StandardScaler, PolynomialFeatures
+from sklearn.linear_model import LinearRegression, Lasso, Ridge, ElasticNet, LogisticRegression
+from sklearn.svm import SVR, SVC
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.preprocessing import StandardScaler, MinMaxScaler, PolynomialFeatures
 from sklearn.model_selection import GridSearchCV, train_test_split
 from sklearn.pipeline import Pipeline
-from sklearn.metrics import mean_absolute_error, mean_squared_error
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score, classification_report, confusion_matrix, f1_score
+import tensorflow
+from tensorflow import keras
+from keras.models import Sequential
+from keras.layers import Dense
+from keras.callbacks import EarlyStopping
 import os
 
 
@@ -79,7 +85,7 @@ class FindBestModel:
 
     def create_reg_models(self):
         # Preparation
-        X = self.df.drop(self.target)
+        X = self.df.drop(self.target, axis=1)
         y = self.df[self.target]
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
         # Preprocessing
@@ -102,7 +108,7 @@ class FindBestModel:
         lasso_param_grid = {"poly__degree": [1, 2, 3, 4], "model__alpha": [0.2, 0.5, 1]}
         ridge_param_grid = {"poly__degree": [1, 2, 3, 4], "model__alpha": [0.2, 0.5, 1]}
         en_param_grid = {"poly__degree": [1, 2, 3, 4], "model__alpha": [0.2, 0.5, 1]}
-        svr_param_grid = {"C": [0.1, 0.5, 1, 5, 10], "epsilon": [0.1, 0.5, 1, 2]}
+        svr_param_grid = {"model__C": [0.1, 0.5, 1, 5, 10], "model__epsilon": [0.1, 0.5, 1, 2]}
         # Creating the cv models
         linear_reg = GridSearchCV(estimator=lr_pipe, param_grid=lr_param_grid, cv=10, scoring="r2")
         lasso = GridSearchCV(estimator=lasso_pipe, param_grid=lasso_param_grid, cv=10, scoring="r2")
@@ -110,37 +116,37 @@ class FindBestModel:
         elastic_net = GridSearchCV(estimator=en_pipe, param_grid=en_param_grid, cv=10, scoring="r2")
         svr = GridSearchCV(estimator=svr_pipe, param_grid=svr_param_grid, cv=10, scoring="r2")
         # Fitting the models
-        linear_reg.fit(np.array(X_train), y_train)
-        lasso.fit(np.array(X_train), y_train)
-        ridge.fit(np.array(X_train), y_train)
-        elastic_net.fit(np.array(X_train), y_train)
-        svr.fit(np.array(X_train), y_train)
+        linear_reg.fit(X_train, y_train)
+        lasso.fit(X_train, y_train)
+        ridge.fit(X_train, y_train)
+        elastic_net.fit(X_train, y_train)
+        svr.fit(X_train, y_train)
         # Make predictions
-        lr_predictions = linear_reg.predict(np.array(X_test))
-        lasso_predictions = lasso.predict(np.array(X_test))
-        ridge_predictions = ridge.predict(np.array(X_test))
-        en_predictions = elastic_net.predict(np.array(X_test))
-        svr_predictions = svr.predict(np.array(X_test))
+        lr_predictions = linear_reg.predict(X_test)
+        lasso_predictions = lasso.predict(X_test)
+        ridge_predictions = ridge.predict(X_test)
+        en_predictions = elastic_net.predict(X_test)
+        svr_predictions = svr.predict(X_test)
         # Evaluate lr
         lr_mae = mean_absolute_error(y_true=y_test, y_pred=lr_predictions)
         lr_rmse = np.sqrt(mean_squared_error(y_true=y_test, y_pred=lr_predictions))
-        lr_r2 = linear_reg.score(np.array(X_test, y_test))
+        lr_r2 = linear_reg.score(X_test, y_test)
         # Evaluate lasso
         lasso_mae = mean_absolute_error(y_true=y_test, y_pred=lasso_predictions)
         lasso_rmse = np.sqrt(mean_squared_error(y_true=y_test, y_pred=lasso_predictions))
-        lasso_r2 = lasso.score(np.array(X_test, y_test))
+        lasso_r2 = lasso.score(X_test, y_test)
         # Evaluate ridge
         ridge_mae = mean_absolute_error(y_true=y_test, y_pred=ridge_predictions)
         ridge_rmse = np.sqrt(mean_squared_error(y_true=y_test, y_pred=ridge_predictions))
-        ridge_r2 = ridge.score(np.array(X_test, y_test))
+        ridge_r2 = ridge.score(X_test, y_test)
         # Evaluate elastic net
         en_mae = mean_absolute_error(y_true=y_test, y_pred=en_predictions)
         en_rmse = np.sqrt(mean_squared_error(y_true=y_test, y_pred=en_predictions))
-        en_r2 = elastic_net.score(np.array(X_test, y_test))
+        en_r2 = elastic_net.score(X_test, y_test)
         # Evaluate svr
         svr_mae = mean_absolute_error(y_true=y_test, y_pred=svr_predictions)
         svr_rmse = np.sqrt(mean_squared_error(y_true=y_test, y_pred=svr_predictions))
-        svr_r2 = svr.score(np.array(X_test, y_test))
+        svr_r2 = svr.score(X_test, y_test)
         # Create a dataframe with the model evaluations
         metrics_dict = {
             "Model": ["Linear Regression", "Lasso", "Ridge", "ElasticNet", "SVR"],
@@ -148,10 +154,107 @@ class FindBestModel:
             "RMSE": [lr_rmse, lasso_rmse, ridge_rmse, en_rmse, svr_rmse],
             "R2 Score": [lr_r2, lasso_r2, ridge_r2, en_r2, svr_r2]
         }
+        metrics_df = pd.DataFrame(metrics_dict)
 
-        metrics_list = [metrics_dict]
+        return linear_reg, lasso, ridge, elastic_net, svr, metrics_df
 
-        metrics_df = pd.DataFrame(metrics_list)
+    def ann_regressor(self):
+        X = self.df.drop(self.target, axis=1).values
+        y = self.df[self.target].values
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+        scaler = MinMaxScaler()
+        X_train = scaler.fit_transform(X_train)
+        X_test = scaler.transform(X_test)
+        model = Sequential()
+        model.add(Dense(units=X.shape[1], activation='relu', input_shape=(X_train.shape[1],)))
+        model.add(Dense(units=X.shape[1]*2, activation='relu'))
+        model.add(Dense(units=X.shape[1]*2, activation='relu'))
+        model.add(Dense(units=X.shape[1], activation='relu'))
+        model.add(Dense(1))
+        model.compile(optimizer='adam', loss='mse')
+        early_stopping = EarlyStopping(monitor='loss', patience=3)
+        model.fit(x=X_train, y=y_train, epochs=500, callbacks=[early_stopping])
+        predictions = model.predict(X_test)
+        MAE = mean_absolute_error(y_test, predictions)
+        RMSE = np.sqrt(mean_squared_error(y_test, predictions))
+        r2 = r2_score(y_test, predictions)
+        metrics_dict = {
+            "Model": model,
+            "MAE": MAE,
+            "RMSE": RMSE,
+            "R2 Score": r2
+        }
+        metrics_series = pd.Series(metrics_dict)
+
+        return metrics_series, model
+
+    def create_classification_models(self):
+        # preparation
+        X = self.df.drop(self.target, axis=1)
+        y = self.df[self.target]
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
+        # Preprocessing
+        scaler = StandardScaler()
+        # Operations
+        log_reg_operations = [("scaler", scaler), ("model", LogisticRegression(solver='saga', max_iter=5000))]
+        knn_operations = [("scaler", scaler), ("model", KNeighborsClassifier())]
+        svc_operations = [("scaler", scaler), ("model", SVC())]
+        # Param grids
+        log_reg_param_grid = {"model__penalty": ["l1", "l2"], "model__C": [0.001, 0.01, 0.1, 1, 10]}
+        knn_param_grid = {"model__n_neighbors": [1, 3, 5, 7, 9, 11, 13, 15]}
+        svc_param_grid = {"model__C": [0.1, 1, 10, 100], "model__gamma": [0.1, 1, 10, 100]}
+        # Pipes
+        log_reg_pipe = Pipeline(log_reg_operations)
+        knn_pipe = Pipeline(knn_operations)
+        svc_pipe = Pipeline(svc_operations)
+        # CV models
+        log_reg = GridSearchCV(estimator=log_reg_pipe, param_grid=log_reg_param_grid, cv=10, scoring="f1_micro")
+        knn = GridSearchCV(estimator=knn_pipe, param_grid=knn_param_grid, cv=10, scoring="f1_micro")
+        svc = GridSearchCV(estimator=svc_pipe, param_grid=svc_param_grid, cv=10, scoring="f1_micro")
+        # Model fitting
+        log_reg.fit(X_train, y_train)
+        knn.fit(X_train, y_train)
+        svc.fit(X_train, y_train)
+        # Predictions
+        log_reg_predictions = log_reg.predict(X_test)
+        knn_predictions = knn.predict(X_test)
+        svc_predictions = svc.predict(X_test)
+        # f1 scores
+        log_reg_score = f1_score(y_true=y_test, y_pred=log_reg_predictions, average="micro")
+        knn_score = f1_score(y_true=y_test, y_pred=knn_predictions, average="micro")
+        svc_score = f1_score(y_true=y_test, y_pred=svc_predictions, average="micro")
+        scores_dict = {
+            "log_reg": log_reg_score,
+            "knn": knn_score,
+            "svc": svc_score
+        }
+        scores_series = pd.Series(scores_dict)
+        return scores_series, log_reg, knn, svc, log_reg_predictions, knn_predictions, svc_predictions
+
+    def ann_classifier(self):
+        nr_of_classes = self.df[self.target].nunique()
+        if nr_of_classes < 3:
+            loss = "binary_crossentropy"
+            activation = "sigmoid"
+        else:
+            loss = "categorical_crossentropy"
+            activation = "softmax"
+
+        X = self.df.drop(self.target, axis=1)
+        y = self.df[self.target]
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+    def run(self):
+        pass
+
+
+
+
+
+
+
+
+
 
 
 
