@@ -20,6 +20,8 @@ class FindBestModel:
         self.model_type = str()
         self.df = pd.DataFrame()
         self.target = str()
+        self.classification_target_type = str()
+        self.nr_of_classes_one_hot_encoded = int()
 
     def type_of_model(self):
         model_type = input("Enter type of model: ")
@@ -39,12 +41,30 @@ class FindBestModel:
         for col in self.df.columns:
             print(col)
 
-    def enter_target_column(self):
+    def enter_target_column_reg(self):
         target = input("Enter target: ")
         if target in self.df.columns:
             self.target = target
         else:
             raise ValueError(f"{target} doesn't seem to be among the columns")
+
+    def enter_target_classification(self):
+        alternatives = ["[B]Binary", "[L]Labeled", "[D]Dummies"]
+        prompt = "\n".join(alternatives)
+        target_type = input(f"Is your target:\n{prompt}\n")
+        target = input("Enter target(separated by comma if more then one): ")
+        if target_type == "B".lower() and target in self.df.columns:
+            self.target = target
+            self.classification_target_type = "B"
+        elif target_type == "L".lower() and target in self.df.columns:
+            self.target = target
+            self.classification_target_type = "L"
+        elif target_type == "D".lower():
+            target = target.replace(" ", "")
+            nr_of_classes = len(target.split(sep=","))
+            self.target = target
+            self.classification_target_type = "D"
+            self.nr_of_classes_one_hot_encoded = nr_of_classes
 
     def check_if_continuous_or_categorical(self):
         nr_unique = self.df[self.target].nunique()
@@ -172,8 +192,8 @@ class FindBestModel:
         model.add(Dense(units=X.shape[1], activation='relu'))
         model.add(Dense(1))
         model.compile(optimizer='adam', loss='mse')
-        early_stopping = EarlyStopping(monitor='loss', patience=3)
-        model.fit(x=X_train, y=y_train, epochs=500, callbacks=[early_stopping])
+        early_stopping = EarlyStopping(monitor='val_loss', mode="min", patience=3)
+        model.fit(X_train, y_train, epochs=500, validation_data=[X_test, y_test], callbacks=[early_stopping])
         predictions = model.predict(X_test)
         MAE = mean_absolute_error(y_test, predictions)
         RMSE = np.sqrt(mean_squared_error(y_test, predictions))
@@ -193,32 +213,40 @@ class FindBestModel:
         X = self.df.drop(self.target, axis=1)
         y = self.df[self.target]
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
+
         # Preprocessing
         scaler = StandardScaler()
+
         # Operations
         log_reg_operations = [("scaler", scaler), ("model", LogisticRegression(solver='saga', max_iter=5000))]
         knn_operations = [("scaler", scaler), ("model", KNeighborsClassifier())]
         svc_operations = [("scaler", scaler), ("model", SVC())]
+
         # Param grids
         log_reg_param_grid = {"model__penalty": ["l1", "l2"], "model__C": [0.001, 0.01, 0.1, 1, 10]}
         knn_param_grid = {"model__n_neighbors": [1, 3, 5, 7, 9, 11, 13, 15]}
         svc_param_grid = {"model__C": [0.1, 1, 10, 100], "model__gamma": [0.1, 1, 10, 100]}
+
         # Pipes
         log_reg_pipe = Pipeline(log_reg_operations)
         knn_pipe = Pipeline(knn_operations)
         svc_pipe = Pipeline(svc_operations)
+
         # CV models
         log_reg = GridSearchCV(estimator=log_reg_pipe, param_grid=log_reg_param_grid, cv=10, scoring="f1_micro")
         knn = GridSearchCV(estimator=knn_pipe, param_grid=knn_param_grid, cv=10, scoring="f1_micro")
         svc = GridSearchCV(estimator=svc_pipe, param_grid=svc_param_grid, cv=10, scoring="f1_micro")
+
         # Model fitting
         log_reg.fit(X_train, y_train)
         knn.fit(X_train, y_train)
         svc.fit(X_train, y_train)
+
         # Predictions
         log_reg_predictions = log_reg.predict(X_test)
         knn_predictions = knn.predict(X_test)
         svc_predictions = svc.predict(X_test)
+
         # f1 scores
         log_reg_score = f1_score(y_true=y_test, y_pred=log_reg_predictions, average="micro")
         knn_score = f1_score(y_true=y_test, y_pred=knn_predictions, average="micro")
@@ -232,23 +260,74 @@ class FindBestModel:
         return scores_series, log_reg, knn, svc, log_reg_predictions, knn_predictions, svc_predictions
 
     def ann_classifier(self):
-        nr_of_classes = self.df[self.target].nunique()
-        if nr_of_classes < 3:
-            loss = "binary_crossentropy"
+        # Preparation
+        target_type = self.classification_target_type
+        if target_type == "B":
+            units = 1
             activation = "sigmoid"
-        else:
-            loss = "categorical_crossentropy"
+            loss = "binary_crossentropy"
+        elif target_type == "L":
+            units = self.df[self.target].nunique()
             activation = "softmax"
+            loss = "sparse_categorical_crossentropy"
+        else:
+            units = self.nr_of_classes_one_hot_encoded
+            activation = "softmax"
+            loss = "categorical_crossentropy"
 
-        X = self.df.drop(self.target, axis=1)
-        y = self.df[self.target]
+        # X, y
+        if target_type in ["B", "L"]:
+            X = self.df.drop(self.target, axis=1).values
+            y = self.df[self.target].values
+        else:
+            target = self.target.split(sep=",")
+            X = self.df.drop(target, axis=1).values
+            y = self.df[target].values
+
+        # train_test_split
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
+        # Scaling
+        scaler = MinMaxScaler()
+        X_train = scaler.fit_transform(X_train)
+        X_test = scaler.transform(X_test)
+
+        # Building the model
+        model = Sequential()
+        model.add(Dense(units=X.shape[1], activation='relu'))
+        model.add(Dense(units=X.shape[1]*2, activation='relu'))
+        model.add(Dense(units=X.shape[1]*2, activation='relu'))
+        model.add(Dense(units=units, activation=activation))
+        model.compile(loss=loss, optimizer="adam")
+        early_stopping = EarlyStopping(monitor='val_loss', mode="min", patience=3)
+
+        # Training the model
+        model.fit(X_train, y_train, epochs=500, validation_data=[X_test, y_test], callbacks=early_stopping)
+
+        # Predictions
+        if self.classification_target_type == "B":
+            predictions = (model.predict(X_test) > 0.5).astype("int32")
+        elif self.classification_target_type == "L":
+            predictions = np.argmax(model.predict(X_test), axis=1)
+        else:
+            predictions = np.argmax(model.predict(X_test), axis=1)
+            predictions = pd.get_dummies(predictions)
+
+        # F1 Score
+        ann_score = f1_score(y_true=y_test, y_pred=predictions, average="micro")
+
+        return ann_score, predictions, model
+
+
+
     def run(self):
-        pass
+        self.type_of_model()
+        self.read_in_csv()
+        self.print_out_column_names()
 
 
 
+    # run()
 
 
 

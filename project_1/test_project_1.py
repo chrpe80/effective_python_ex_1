@@ -3,6 +3,15 @@ import unittest
 from unittest.mock import patch
 from project_1 import FindBestModel
 
+def get_iris_label():
+    df = pd.read_csv("iris.csv")
+    df["species"] = df["species"].replace(["setosa", "versicolor", "virginica"], [0, 1, 2])
+    return df
+
+def get_iris_dummies():
+    df = pd.get_dummies(pd.read_csv("iris.csv"))
+    return df
+
 
 class TestFindBestModel(unittest.TestCase):
     def test_type_of_model_wrong_input(self):
@@ -44,14 +53,14 @@ class TestFindBestModel(unittest.TestCase):
         with patch("builtins.input") as mocked_input:
             mocked_input.return_value = "wrong input"
             with self.assertRaises(ValueError):
-                instance.enter_target_column()
+                instance.enter_target_column_reg()
 
     def test_enter_target_column_valid_input(self):
         instance = FindBestModel()
         instance.df = pd.read_csv("advertising.csv")
         with patch("builtins.input") as mocked_input:
             mocked_input.return_value = "sales"
-            instance.enter_target_column()
+            instance.enter_target_column_reg()
 
     def test_check_if_continuous_or_categorical(self):
         instance = FindBestModel()
@@ -95,10 +104,30 @@ class TestFindBestModel(unittest.TestCase):
         self.assertIsInstance(instance.create_classification_models(), tuple)
         self.assertEqual(len(instance.create_classification_models()), 7)
 
+    def test_ann_classifier_binary(self):
+        instance = FindBestModel()
+        instance.df = pd.read_csv("hearing_test.csv")
+        instance.target = "test_result"
+        instance.classification_target_type = "B"
+        self.assertIsInstance(instance.ann_classifier(), tuple)
+        self.assertEqual(len(instance.ann_classifier()), 3)
 
+    def test_ann_classifier_label(self):
+        instance = FindBestModel()
+        instance.df = get_iris_label()
+        instance.target = "species"
+        instance.classification_target_type = "L"
+        self.assertIsInstance(instance.ann_classifier(), tuple)
+        self.assertEqual(len(instance.ann_classifier()), 3)
 
-
-
+    def test_ann_classifier_dummies(self):
+        instance = FindBestModel()
+        instance.df = get_iris_dummies()
+        instance.target = "species_setosa,species_versicolor,species_virginica"
+        instance.classification_target_type = "D"
+        instance.nr_of_classes_one_hot_encoded = 3
+        self.assertIsInstance(instance.ann_classifier(), tuple)
+        self.assertEqual(len(instance.ann_classifier()), 3)
 
 
 if __name__ == "__main__":
