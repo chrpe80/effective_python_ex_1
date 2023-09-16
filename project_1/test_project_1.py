@@ -1,137 +1,159 @@
 import pandas as pd
+from sklearn.linear_model import LinearRegression, LogisticRegression
+from sklearn.pipeline import Pipeline
 import unittest
 from unittest.mock import patch
 from project_1 import FindBestModel
 
-def get_iris_label():
-    df = pd.read_csv("iris.csv")
-    df["species"] = df["species"].replace(["setosa", "versicolor", "virginica"], [0, 1, 2])
-    return df
-
-def get_iris_dummies():
-    df = pd.get_dummies(pd.read_csv("iris.csv"))
-    return df
 
 
 class TestFindBestModel(unittest.TestCase):
-    def test_type_of_model_wrong_input(self):
+    def test_type_of_model_1(self):
+        instance = FindBestModel()
+        with patch("builtins.input") as mocked_input:
+            mocked_input.return_value = "R"
+            instance.type_of_model()
+            self.assertEqual(instance.model_type, "r")
+
+    def test_type_of_model_2(self):
         instance = FindBestModel()
         with patch("builtins.input") as mocked_input:
             mocked_input.return_value = "U"
             with self.assertRaises(ValueError):
                 instance.type_of_model()
 
-    def test_type_of_model_correct_input(self):
+    def test_read_in_df_1(self):
         instance = FindBestModel()
         with patch("builtins.input") as mocked_input:
-            mocked_input.return_value = "R".lower()
-            instance.type_of_model()
-
-    def test_read_in_csv_wrong_input(self):
-        instance = FindBestModel()
-        with patch("builtins.input") as mocked_input:
-            mocked_input.return_value = "wrong input"
+            mocked_input.return_value = "advertising"
+            path = "advertising.csv"
+            self.assertNotEqual(instance.path, path)
             with self.assertRaises(ValueError):
-                instance.read_in_csv()
+                instance.read_in_df()
 
-    def test_read_in_csv_valid_input(self):
+    def test_read_in_df_2(self):
         instance = FindBestModel()
+        expected_df = pd.read_csv("advertising.csv")
         with patch("builtins.input") as mocked_input:
             mocked_input.return_value = "advertising.csv"
-            instance.read_in_csv()
+            instance.read_in_df()
+        self.assertTrue(instance.df.equals(expected_df))
 
-    def test_print_out_column_names(self):
+    def test_enter_path(self):
         instance = FindBestModel()
-        instance.df = pd.read_csv("advertising.csv")
-        with patch("builtins.print") as mocked_print:
-            instance.print_out_column_names()
-            self.assertGreater(mocked_print.call_count, 1)
-
-    def test_enter_target_column_wrong_input(self):
-        instance = FindBestModel()
-        instance.df = pd.read_csv("advertising.csv")
         with patch("builtins.input") as mocked_input:
-            mocked_input.return_value = "wrong input"
+            mocked_input.return_value = "Invalid input"
             with self.assertRaises(ValueError):
-                instance.enter_target_column_reg()
+                instance.enter_path()
 
-    def test_enter_target_column_valid_input(self):
+    def test_check_if_only_numerical_columns(self):
+        instance = FindBestModel()
+        instance.path = "ames.csv"
+        with self.assertRaises(ValueError):
+            instance.check_if_only_numerical_columns()
+
+    def test_check_if_missing_values(self):
+        instance = FindBestModel()
+        instance.path = "ames.csv"
+        with self.assertRaises(ValueError):
+            instance.check_if_missing_values()
+
+    def test_read_in_target_1(self):
+        instance = FindBestModel()
+        with patch("builtins.input") as mocked_input:
+            mocked_input.return_value = "invalid input"
+            with self.assertRaises(ValueError):
+                instance.read_in_target()
+
+    def test_read_in_target_2(self):
         instance = FindBestModel()
         instance.df = pd.read_csv("advertising.csv")
         with patch("builtins.input") as mocked_input:
             mocked_input.return_value = "sales"
-            instance.enter_target_column_reg()
+            instance.read_in_target()
+            expectation = "sales"
+            self.assertEqual(instance.target, expectation)
 
-    def test_check_if_continuous_or_categorical(self):
+    def test_pipe_preparation(self):
+        instance = FindBestModel()
+        self.assertIsInstance(instance.pipe_preparation("LIR", LinearRegression()), Pipeline)
+
+    def test_param_grid_preparation(self):
+        instance = FindBestModel()
+        self.assertEqual(instance.param_grid_preparation("LIR"), {"poly__degree": [2, 3, 4]})
+
+    def test_data_preparation(self):
         instance = FindBestModel()
         instance.df = pd.read_csv("advertising.csv")
         instance.target = "sales"
-        expected = ["Continuous", "Categorical"]
-        self.assertIn(instance.check_if_continuous_or_categorical(), expected)
+        self.assertEqual(len(instance.data_preparation("LIR")), 4)
 
-    def test_check_if_ready_for_ml_valid_input(self):
-        instance = FindBestModel()
-        instance.df = pd.read_csv("advertising.csv")
-        instance.check_if_only_numerical_columns()
-        instance.check_if_missing_values()
-        expectation = True
-        self.assertEqual(expectation, instance.check_if_ready_for_ml())
-
-    def test_check_if_ready_for_ml_wrong_input(self):
-        instance = FindBestModel()
-        instance.df = pd.read_csv("ames.csv")
-        expectation = "There are missing values and all columns are not numerical"
-        self.assertEqual(expectation, instance.check_if_ready_for_ml())
-
-    def test_create_reg_models(self):
+    def test_create_ml_regression_model(self):
         instance = FindBestModel()
         instance.df = pd.read_csv("advertising.csv")
         instance.target = "sales"
-        self.assertIsInstance(instance.create_reg_models(), tuple)
-        self.assertEqual(len(instance.create_reg_models()), 6)
+        basic_model = LinearRegression()
+        self.assertEqual(len(instance.create_ml_regression_model("LIR", basic_model)), 4)
 
-    def test_ann_regressor(self):
+    def test_create_ann_regression_model(self):
         instance = FindBestModel()
         instance.df = pd.read_csv("advertising.csv")
         instance.target = "sales"
-        self.assertIsInstance(instance.ann_regressor(), tuple)
-        self.assertEqual(len(instance.ann_regressor()), 2)
+        self.assertEqual(len(instance.create_ann_regression_model()), 4)
 
-    def test_create_classification_models(self):
+    def test_create_ml_classification_model(self):
         instance = FindBestModel()
-        instance.df = pd.read_csv("hearing_test.csv")
-        instance.target = "test_result"
-        self.assertIsInstance(instance.create_classification_models(), tuple)
-        self.assertEqual(len(instance.create_classification_models()), 7)
-
-    def test_ann_classifier_binary(self):
-        instance = FindBestModel()
-        instance.df = pd.read_csv("hearing_test.csv")
-        instance.target = "test_result"
-        instance.classification_target_type = "B"
-        self.assertIsInstance(instance.ann_classifier(), tuple)
-        self.assertEqual(len(instance.ann_classifier()), 3)
-
-    def test_ann_classifier_label(self):
-        instance = FindBestModel()
-        instance.df = get_iris_label()
+        instance.df = pd.read_csv("iris.csv")
         instance.target = "species"
-        instance.classification_target_type = "L"
-        self.assertIsInstance(instance.ann_classifier(), tuple)
-        self.assertEqual(len(instance.ann_classifier()), 3)
+        self.assertEqual(len(instance.create_ml_classification_model("LOR", LogisticRegression(solver="saga", max_iter=5000))), 2)
 
-    def test_ann_classifier_dummies(self):
+    def test_create_binary_ann_classification_model(self):
         instance = FindBestModel()
-        instance.df = get_iris_dummies()
-        instance.target = "species_setosa,species_versicolor,species_virginica"
-        instance.classification_target_type = "D"
-        instance.nr_of_classes_one_hot_encoded = 3
-        self.assertIsInstance(instance.ann_classifier(), tuple)
-        self.assertEqual(len(instance.ann_classifier()), 3)
+        instance.df = pd.read_csv("hearing_test.csv")
+        instance.target = "test_result"
+        self.assertEqual(len(instance.create_binary_ann_classification_model()), 2)
+
+    def test_create_multi_ann_classification_model(self):
+        instance = FindBestModel()
+        instance.df = pd.read_csv("iris.csv")
+        instance.target = "species"
+        self.assertEqual(len(instance.create_multi_ann_classification_model()), 2)
+
+    def test_run_1(self):
+        instance = FindBestModel()
+        instance.model_type = "r"
+        instance.df = pd.read_csv("advertising.csv")
+        instance.target = "sales"
+        with patch("builtins.input") as mocked_input:
+            mocked_input.return_value = ["1"]
+
+    def test_run_2(self):
+        instance = FindBestModel()
+        instance.model_type = "c"
+        instance.df = pd.read_csv("hearing_test.csv")
+        instance.target = "test_result"
+        with patch("builtins.input") as mocked_input:
+            mocked_input.return_value = ["1"]
+
+    def test_run_3(self):
+        instance = FindBestModel()
+        instance.model_type = "c"
+        instance.df = pd.read_csv("iris.csv")
+        instance.target = "species"
+        with patch("builtins.input") as mocked_input:
+            mocked_input.return_value = ["1"]
 
 
 if __name__ == "__main__":
     unittest.main()
+
+
+
+
+
+
+
+
 
 
 
