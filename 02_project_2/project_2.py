@@ -9,6 +9,10 @@ class Player:
 
     @staticmethod
     def validate_name(name: str):
+        """
+        Validates the given name to ensure it's alphabetic and contains one space
+        :rtype: str or None
+        """
         nr_of_spaces = name.count(" ")
         is_alpha = all(x.isalpha() for x in name.split(" "))
         if nr_of_spaces == 1 and is_alpha:
@@ -18,6 +22,10 @@ class Player:
 
     @staticmethod
     def validate_birthdate(birthdate: str):
+        """
+        Validates and converts the given birthdate to a datetime object
+        :rtype: datetime or None
+        """
         try:
             return datetime.strptime(str(birthdate).replace("-", ""), '%Y%m%d')
         except ValueError:
@@ -25,6 +33,10 @@ class Player:
 
     @property
     def age(self):
+        """
+        Calculates the age of the player based on their birthdate
+        :rtype: int or None
+        """
         if self.birthdate is None:
             return None
 
@@ -38,11 +50,19 @@ class Player:
 
     @property
     def is_of_age(self):
+        """
+        Checks if the player is 18 years old or older
+        :rtype: bool
+        """
         if self.age >= 18:
             return True
         return False
 
     def ready_to_go(self):
+        """
+        Checks if the player is 18 years old or older
+        :rtype: bool
+        """
         if self.name is None or self.birthdate is None:
             print("Incomplete input")
             return False
@@ -70,40 +90,76 @@ class GamePlay:
 
     @staticmethod
     def get_player_name():
+        """
+        Gets the player's name via input
+        :rtype: str
+        """
         name = input("Enter your name: ")
         return name
 
     @staticmethod
     def get_birthdate():
+        """
+        Gets the player's birthdate via input
+        :rtype: str
+        """
         birthdate = input("Enter your birthdate (yyyymmdd): ")
         return birthdate
 
     @property
     def lucky_list(self):
+        """
+        Gets the lucky_list
+        :rtype: list
+        """
         return self._lucky_list
 
     @lucky_list.setter
     def lucky_list(self, value):
+        """
+        Sets the lucky list
+        :rtype: None
+        """
         self._lucky_list = value
 
     @property
     def lucky_number(self):
+        """
+        Gets the lucky number
+        :rtype: int
+        """
         return self._lucky_number
 
     @lucky_number.setter
     def lucky_number(self, value):
+        """
+        Sets the lucky number
+        :rtype: None
+        """
         self._lucky_number = value
 
     @property
     def guess(self):
+        """
+        Gets the player's guess
+        :rtype: int
+        """
         return self._guess
 
     @guess.setter
     def guess(self, value):
+        """
+        Sets the player's guess if it's an integer between 0-100
+        :rtype: None
+        """
         if 0 <= int(value) <= 100:
             self._guess = value
 
     def check_if_guess_is_correct(self):
+        """
+        Checks if the player's guess matches the lucky number
+        :rtype: bool
+        """
         if self._guess == self._lucky_number:
             return True
 
@@ -111,6 +167,10 @@ class GamePlay:
 
     @staticmethod
     def get_guess():
+        """
+        Gets the player's guess via input and validates it
+        :rtype: int or None
+        """
         guess = input("Enter guess: ")
         if guess.isnumeric() and 0 <= int(guess) <= 100:
             return int(guess)
@@ -118,9 +178,17 @@ class GamePlay:
 
     @staticmethod
     def print_message():
+        """
+        Prints a message stating that the guess must be an integer between 0-100
+        :rtype: None
+        """
         print("Your guess has to be an integer between 0-100")
 
     def start_game(self):
+        """
+        Starts the game loop, allowing the player to guess many times
+        :rtype: None
+        """
         while True:
             self.run()
             while True:
@@ -135,6 +203,10 @@ class GamePlay:
                     print("Valid inputs are [y/n]")
 
     def run(self):
+        """
+        Runs the game
+        :rtype: None
+        """
         self.lucky_list = random.sample(range(1, 100), 9)
         self.lucky_number = random.randint(1, 100)
         self._lucky_list.append(self._lucky_number)
@@ -156,6 +228,5 @@ class GamePlay:
                     print(self._lucky_list)
             else:
                 self.print_message()
-
 
 # GamePlay()

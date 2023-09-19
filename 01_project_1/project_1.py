@@ -23,6 +23,10 @@ class FindBestModel:
         self.target = str()
 
     def type_of_model(self):
+        """
+        Takes user input and sets model_type and if invalid input, raises ValueError
+        :rtype: None
+        """
         alternatives = ["[R]Regression", "[C]Classifier"]
         prompt = "\n".join(alternatives)
         model_type = input(f"{prompt}\n: ")
@@ -32,12 +36,20 @@ class FindBestModel:
             raise ValueError("Invalid input")
 
     def read_in_df(self):
+        """
+        Reads in the dataset if ready for ml
+        :rtype: None
+        """
         self.enter_path()
         self.check_if_only_numerical_columns()
         self.check_if_missing_values()
         self.df = pd.read_csv(self.path)
 
     def enter_path(self):
+        """
+        Validation of the path, raises ValueError if not a file
+        :rtype: None
+        """
         path = input("Enter path: ")
         if os.path.isfile(path):
             self.path = path
@@ -45,6 +57,10 @@ class FindBestModel:
             raise ValueError("Not a file")
 
     def check_if_only_numerical_columns(self):
+        """
+        Validates if numerical columns only, raises ValueError if there are object columns
+        :rtype: None
+        """
         df = pd.read_csv(self.path)
         numerical_columns = df.select_dtypes(exclude="object")
         if len(numerical_columns.columns) == len(df.columns):
@@ -53,6 +69,10 @@ class FindBestModel:
             raise ValueError("Not all columns are numerical")
 
     def check_if_missing_values(self):
+        """
+        Checks for missing values, raises ValueError if it has missing values
+        :rtype: None
+        """
         df = pd.read_csv(self.path)
         if df.isnull().sum().sum() == 0:
             pass
@@ -60,6 +80,10 @@ class FindBestModel:
             raise ValueError("Has missing values")
 
     def read_in_target(self):
+        """
+        Reads in target and validates it, Raises ValueError if the target is not found
+        :rtype: None
+        """
         target = input("Enter target: ")
         in_df_columns = self.check_if_in_df_columns(target)
         if in_df_columns:
@@ -68,6 +92,10 @@ class FindBestModel:
             raise ValueError("Not found among columns")
 
     def check_if_in_df_columns(self, target):
+        """
+        Checks if the given target variable exists in the dataset columns
+        :rtype: bool
+        """
         if target in self.df.columns:
             return True
         else:
@@ -75,6 +103,10 @@ class FindBestModel:
 
     @staticmethod
     def pipe_preparation(for_type, basic_model):
+        """
+        Prepares a pipeline for the given type of model
+        :rtype: object
+        """
         if for_type in ["LIR", "LASSO", "RIDGE", "EN"]:
             poly = PolynomialFeatures()
             scaler = StandardScaler()
@@ -89,6 +121,10 @@ class FindBestModel:
 
     @staticmethod
     def param_grid_preparation(for_type):
+        """
+        Prepares a parameter grid for GridSearchCV based on the given type of mode
+        :rtype: dict
+        """
         if for_type == "LIR":
             param_grid = {"poly__degree": [2, 3, 4]}
             return param_grid
@@ -115,6 +151,10 @@ class FindBestModel:
             return param_grid
 
     def data_preparation(self, for_type):
+        """
+        Prepares the dataset for training and testing based on the given type of model
+        :rtype: tuple
+        """
         if for_type in ["LIR", "LASSO", "RIDGE", "EN", "SVR", "LOR", "KNN", "SVC", "ANN_REG", "ANN_CLASS_BIN"]:
             X = self.df.drop(self.target, axis=1)
             y = self.df[self.target]
@@ -296,10 +336,18 @@ class FindBestModel:
 
     @staticmethod
     def save(model_names, models, model_name):
+        """
+        Dumps a model
+        :rtype: None
+        """
         models_dict = dict(zip(model_names, models))
         dump(models_dict[model_name], f'saved_models/{model_name}.joblib')
 
     def run(self):
+        """
+        Executes the entire process
+        :rtype: None
+        """
         # Read in data
         self.type_of_model()
         self.read_in_df()
